@@ -17,6 +17,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.TestMiniMRClientCluster.MyReducer;
 import org.apache.hadoop.mapreduce.Job;
@@ -54,19 +55,20 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
-			for (int i = 0; i < words.length - 1; i++) {
-				if (words[i].isEmpty() || words[i + 1].isEmpty()) {
-					continue;
-				}
 
-				// Emit the bigram
-				BIGRAM.set(words[i], words[i + 1]);
-				context.write(BIGRAM, ONE);
+			String previousWord = words[0];
+            for (int i = 1; i < words.length; i++) {
+                String currentWord = words[i];
+                if (currentWord.isEmpty()) continue;
 
-				// Emit the left word with a special marker
-				BIGRAM.set(words[i], "*");
-				context.write(BIGRAM, ONE);
-			}
+                BIGRAM.set(previousWord, currentWord);
+                context.write(BIGRAM, ONE);
+
+                BIGRAM.set(previousWord, "*");
+                context.write(BIGRAM, ONE);
+
+                previousWord = currentWord;
+            }
 		}
 	}
 
@@ -78,33 +80,30 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 
 		// Reuse objects.
 		private final static FloatWritable VALUE = new FloatWritable();
-
+		private float totalCount = 0;		
 		@Override
 		public void reduce(PairOfStrings key, Iterable<IntWritable> values,
 				Context context) throws IOException, InterruptedException {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
-			String leftWord = key.getLeftElement();
-			String rightWord = key.getRightElement();
-
-			if (rightWord.equals("*")) {
-				// This is the total count for the left word
-				int totalCount = 0;
-				for (IntWritable value : values) {
-					totalCount += value.get();
-				}
-				VALUE.set(totalCount);
-				context.write(new PairOfStrings(leftWord, ""), VALUE);
-				context.getCounter("BigramFrequencyPairs", "TOTAL_COUNT").increment(totalCount);
-			} else {
-				// Calculate the relative frequency
-				int bigramCount = 0;
-				for (IntWritable value : values) {
-					bigramCount += value.get();
-				}
-				VALUE.set((float) bigramCount / context.getCounter("BigramFrequencyPairs", "TOTAL_COUNT").getValue());
-				context.write(key, VALUE);
+			String left = key.getLeftElement();
+			String right = key.getRightElement();
+			int sum = 0;
+			for (IntWritable value : values) {
+				sum += value.get();
+			}
+			if (right.equals("*")) {
+				totalCount = sum;
+				PairOfStrings totalKey = new PairOfStrings(left, "TOTAL");
+				VALUE.set(sum);
+				context.write(totalKey, VALUE);
+			} else if (totalCount > 0) { // Only compute if totalCount is set
+				float relativeFrequency = (float) sum / totalCount;
+				PairOfStrings bigramKey = new PairOfStrings(left, right);
+				VALUE.set(relativeFrequency);
+				context.write(bigramKey, VALUE);
+				
 			}
 		}
 	}
@@ -120,11 +119,11 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			 * TODO: Your implementation goes here.
 			 */
 			int sum = 0;
-			for (IntWritable value : values) {
-				sum += value.get();
-			}
-			SUM.set(sum);
-			context.write(key, SUM);
+            for (IntWritable value : values) {
+                sum += value.get();
+            }
+            SUM.set(sum);
+            context.write(key, SUM);
 		}
 	}
 
