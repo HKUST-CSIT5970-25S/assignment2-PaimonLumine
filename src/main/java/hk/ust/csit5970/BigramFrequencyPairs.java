@@ -18,6 +18,7 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.TestMiniMRClientCluster.MyReducer;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Partitioner;
@@ -53,6 +54,19 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			for (int i = 0; i < words.length - 1; i++) {
+				if (words[i].isEmpty() || words[i + 1].isEmpty()) {
+					continue;
+				}
+
+				// Emit the bigram
+				BIGRAM.set(words[i], words[i + 1]);
+				context.write(BIGRAM, ONE);
+
+				// Emit the left word with a special marker
+				BIGRAM.set(words[i], "*");
+				context.write(BIGRAM, ONE);
+			}
 		}
 	}
 
@@ -71,6 +85,27 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			String leftWord = key.getLeftElement();
+			String rightWord = key.getRightElement();
+
+			if (rightWord.equals("*")) {
+				// This is the total count for the left word
+				int totalCount = 0;
+				for (IntWritable value : values) {
+					totalCount += value.get();
+				}
+				VALUE.set(totalCount);
+				context.write(new PairOfStrings(leftWord, ""), VALUE);
+				context.getCounter("BigramFrequencyPairs", "TOTAL_COUNT").increment(totalCount);
+			} else {
+				// Calculate the relative frequency
+				int bigramCount = 0;
+				for (IntWritable value : values) {
+					bigramCount += value.get();
+				}
+				VALUE.set((float) bigramCount / context.getCounter("BigramFrequencyPairs", "TOTAL_COUNT").getValue());
+				context.write(key, VALUE);
+			}
 		}
 	}
 	
@@ -84,6 +119,12 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			for (IntWritable value : values) {
+				sum += value.get();
+			}
+			SUM.set(sum);
+			context.write(key, SUM);
 		}
 	}
 
