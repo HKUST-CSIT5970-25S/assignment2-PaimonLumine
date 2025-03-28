@@ -5,10 +5,6 @@ import org.apache.commons.cli.Options;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.*;
-import org.apache.hadoop.io.FloatWritable;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Partitioner;
@@ -19,8 +15,9 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
+import hk.ust.csit5970.CORPairs.CORPairsMapper2;
+import hk.ust.csit5970.CORPairs.CORPairsReducer2;
+
 import org.apache.hadoop.io.*;
 
 
@@ -29,8 +26,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.*;
-import java.util.Arrays;
-import java.util.HashMap;
 
 /**
  * Compute the bigram count using "pairs" approach
@@ -53,6 +48,12 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			while (doc_tokenizer.hasMoreTokens()) {
+				String word = doc_tokenizer.nextToken();
+				if (!word.isEmpty()) {
+					context.write(new Text(word), new IntWritable(1));
+				}
+			}
 		}
 	}
 
@@ -66,6 +67,11 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			for (IntWritable value : values) {
+				sum += value.get();
+			}
+			context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -81,6 +87,23 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			Set<String> words = new HashSet<String>();
+			while (doc_tokenizer.hasMoreTokens()) {
+				String word = doc_tokenizer.nextToken();
+				if (!word.isEmpty()) {
+					words.add(word);
+				}
+			}
+			List<String> wordList = new ArrayList<String>(words);
+			for (int i = 0; i < wordList.size(); i++) {
+				for (int j = i + 1; j < wordList.size(); j++) {
+					String w1 = wordList.get(i);
+					String w2 = wordList.get(j);
+					String left = w1.compareTo(w2) < 0 ? w1 : w2;
+					String right = w1.compareTo(w2) < 0 ? w2 : w1;
+					context.write(new PairOfStrings(left, right), new IntWritable(1));
+				}
+			}
 		}
 	}
 
@@ -93,6 +116,11 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			for (IntWritable value : values) {
+				sum += value.get();
+			}
+			context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -145,6 +173,18 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int freqAB = 0;
+			for (IntWritable value : values) {
+				freqAB += value.get();
+			}
+			String A = key.getLeftElement();
+			String B = key.getRightElement();
+			Integer freqA = word_total_map.get(A);
+			Integer freqB = word_total_map.get(B);
+			if (freqA != null && freqB != null && freqA > 0 && freqB > 0) {
+				double cor = (double) freqAB / (freqA * freqB);
+				context.write(key, new DoubleWritable(cor));
+			}
 		}
 	}
 
