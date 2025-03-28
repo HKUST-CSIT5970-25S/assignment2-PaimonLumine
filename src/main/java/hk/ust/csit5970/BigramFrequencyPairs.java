@@ -80,7 +80,8 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 
 		// Reuse objects.
 		private final static FloatWritable VALUE = new FloatWritable();
-		private float totalCount = 0;		
+		private float totalCount = 0;
+		private String currentWord = null;		
 		@Override
 		public void reduce(PairOfStrings key, Iterable<IntWritable> values,
 				Context context) throws IOException, InterruptedException {
@@ -95,14 +96,14 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			}
 			if (right.equals("*")) {
 				totalCount = sum;
-				PairOfStrings totalKey = new PairOfStrings(left, "TOTAL");
+				currentWord = left;
+				PairOfStrings totalKey = new PairOfStrings(left, "");
 				VALUE.set(sum);
 				context.write(totalKey, VALUE);
-			} else if (totalCount > 0) { // Only compute if totalCount is set
-				float relativeFrequency = (float) sum / totalCount;
-				PairOfStrings bigramKey = new PairOfStrings(left, right);
+			} else if (currentWord != null && currentWord.equals(left)) { 
+				float relativeFrequency =  sum / totalCount;
 				VALUE.set(relativeFrequency);
-				context.write(bigramKey, VALUE);
+				context.write(key, VALUE);
 				
 			}
 		}
