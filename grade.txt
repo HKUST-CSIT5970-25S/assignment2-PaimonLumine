@@ -1,0 +1,5 @@
+====BigramFrePairs==== Mark: 2/2
+====BigramFreStripes==== Mark: 2/2
+====CorPairs==== Mark: 3/3
+====CorStrip==== Mark: 3/3
+====Total Mark: 10/10
